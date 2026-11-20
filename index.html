@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock Tracker</title>
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Stocks">
+<style>
+  :root {
+    --bg:#f4f5f7; --card:#ffffff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --up:#15803d; --up-bg:#dcfce7; --down:#b91c1c; --down-bg:#fee2e2; --accent:#2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0b1120; --card:#131c2e; --text:#e2e8f0; --muted:#94a3b8; --line:#1f2a3e;
+      --up:#4ade80; --up-bg:rgba(20,83,45,.45); --down:#f87171; --down-bg:rgba(127,29,29,.45); --accent:#3b82f6;
+    }
+  }
+  * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font:16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .wrap { max-width:640px; margin:0 auto; padding:0 16px 48px; }
+  header {
+    position:sticky; top:0; z-index:5; background:var(--bg);
+    display:flex; align-items:center; gap:8px;
+    padding:calc(10px + env(safe-area-inset-top)) 0 10px;
+  }
+  h1 { font-size:22px; margin:0; flex:1; letter-spacing:-.3px; }
+  .pill { font-size:12px; font-weight:600; padding:4px 9px; border-radius:999px; background:var(--line); color:var(--muted); white-space:nowrap; }
+  .pill.open { background:var(--up-bg); color:var(--up); }
+  .iconbtn {
+    width:42px; height:42px; border-radius:12px; border:1px solid var(--line);
+    background:var(--card); color:var(--text); display:grid; place-items:center; cursor:pointer; padding:0;
+  }
+  .iconbtn svg { width:20px; height:20px; }
+  .iconbtn.spin svg { animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin:12px 0; }
+  .label { font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:600; }
+  .total { font-size:36px; font-weight:700; letter-spacing:-.8px; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
+  .stat .v { font-weight:650; font-variant-numeric:tabular-nums; font-size:17px; }
+  .stat .p { font-size:14px; font-variant-numeric:tabular-nums; }
+  .up { color:var(--up); } .down { color:var(--down); }
+  .updated { font-size:12px; color:var(--muted); margin-top:12px; }
+  .updated.err { color:var(--down); }
+  .seg { display:flex; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:3px; gap:2px; }
+  .seg button { flex:1; border:0; background:none; color:var(--muted); padding:8px 4px; border-radius:9px; font:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+  .seg button.on { background:var(--accent); color:#fff; }
+  .list { background:var(--card); border:1px solid var(--line); border-radius:16px; margin:12px 0; overflow:hidden; }
+  .row {
+    display:grid; grid-template-columns:1fr auto; gap:3px 12px; width:100%;
+    padding:13px 16px; border:0; border-top:1px solid var(--line); background:none;
+    color:inherit; font:inherit; text-align:left; cursor:pointer;
+  }
+  .row:first-child { border-top:0; }
+  .row:active { background:var(--line); }
+  .tk { font-weight:700; font-size:17px; }
+  .price { font-weight:650; text-align:right; font-variant-numeric:tabular-nums; font-size:17px; }
+  .sub { font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .full { grid-column:1 / -1; }
+  .badge { justify-self:end; min-width:70px; text-align:center; font-size:13px; font-weight:650; padding:2px 7px; border-radius:7px; font-variant-numeric:tabular-nums; background:var(--line); color:var(--muted); }
+  .badge.up { background:var(--up-bg); color:var(--up); } .badge.down { background:var(--down-bg); color:var(--down); }
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    border:1px solid var(--line); background:var(--card); color:var(--text);
+    padding:11px 16px; border-radius:12px; font:inherit; font-weight:600; cursor:pointer;
+  }
+  .btn svg { width:18px; height:18px; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn.danger { color:var(--down); }
+  .btn.block { width:100%; }
+  .actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+  .empty { text-align:center; color:var(--muted); padding:28px 16px; }
+  .empty h2 { color:var(--text); font-size:18px; margin:0 0 6px; }
+  ol.steps { text-align:left; margin:12px 0 16px; padding-left:20px; line-height:1.6; }
+  a { color:var(--accent); }
+  dialog {
+    border:1px solid var(--line); border-radius:18px; padding:0; width:min(520px, calc(100vw - 24px));
+    background:var(--card); color:var(--text); max-height:calc(100vh - 40px);
+  }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  .dlg { padding:18px; }
+  .dlg h3 { margin:0 0 14px; font-size:19px; }
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:13px; font-weight:600; color:var(--muted); margin-bottom:5px; }
+  .field input, .field select, .field textarea {
+    width:100%; font:inherit; font-size:16px; padding:11px 12px; border-radius:10px;
+    border:1px solid var(--line); background:var(--bg); color:var(--text);
+  }
+  .field textarea { font-family:ui-monospace, Consolas, monospace; font-size:13px; min-height:90px; resize:vertical; }
+  .hint { font-size:12px; color:var(--muted); margin-top:5px; }
+  .err-msg { color:var(--down); font-size:14px; min-height:1.2em; margin:4px 0 8px; }
+  .dlg-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; margin-top:6px; }
+  .dlg-actions .spacer { flex:1; }
+  .check { display:flex; align-items:center; gap:10px; font-weight:600; margin-bottom:12px; }
+  .check input { width:20px; height:20px; }
+  pre.preview { background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; font-size:13px; white-space:pre-wrap; margin:0 0 12px; max-height:40vh; overflow:auto; }
+  hr { border:0; border-top:1px solid var(--line); margin:18px 0; }
+  .toast {
+    position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(20px);
+    background:var(--text); color:var(--bg); padding:10px 16px; border-radius:12px; font-size:14px; font-weight:600;
+    opacity:0; pointer-events:none; transition:all .2s; max-width:calc(100vw - 32px);
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  footer { text-align:center; font-size:12px; color:var(--muted); margin-top:20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Portfolio</h1>
+    <span id="market" class="pill">—</span>
+    <button id="refreshBtn" class="iconbtn" aria-label="Refresh prices" title="Refresh">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+    <button id="settingsBtn" class="iconbtn" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </header>
+
+  <div id="main"></div>
+
+  <footer>Quotes from Finnhub · Your data stays on this device</footer>
+</div>
+
+<!-- Add / edit holding -->
+<dialog id="holdingDlg">
+  <div class="dlg">
+    <h3 id="holdingTitle">Add stock</h3>
+    <div class="field">
+      <label for="fSym">Ticker</label>
+      <input id="fSym" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="AAPL" maxlength="10">
+    </div>
+    <div class="field">
+      <label for="fShares">Shares</label>
+      <input id="fShares" inputmode="decimal" placeholder="10" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="fCost">Average cost per share ($)</label>
+      <input id="fCost" inputmode="decimal" placeholder="150.00 (optional)" autocomplete="off">
+      <div class="hint" id="addHint">Adding a ticker you already own combines them and averages your cost.</div>
+    </div>
+    <div class="err-msg" id="holdingErr"></div>
+    <div class="dlg-actions">
+      <button class="btn danger" id="deleteBtn" hidden>Delete</button>
+      <span class="spacer"></span>
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="saveHoldingBtn">Save</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Settings -->
+<dialog id="settingsDlg">
+  <div class="dlg">
+    <h3>Settings</h3>
+    <div class="field">
+      <label for="fKey">Finnhub API key</label>
+      <input id="fKey" autocomplete="off" spellcheck="false" placeholder="Paste your key">
+      <div class="hint">Free at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io</a>. Stored only on this device.</div>
+    </div>
+    <div class="field">
+      <label for="fInterval">Auto-refresh while market is open</label>
+      <select id="fInterval">
+        <option value="0">Off (manual only)</option>
+        <option value="15">Every 15 seconds</option>
+        <option value="30">Every 30 seconds</option>
+        <option value="60">Every minute</option>
+        <option value="120">Every 2 minutes</option>
+        <option value="300">Every 5 minutes</option>
+      </select>
+      <div class="hint" id="intervalHint"></div>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="saveSettingsBtn">Save</button>
+    </div>
+    <hr>
+    <div class="label" style="margin-bottom:8px">Backup &amp; move to another device</div>
+    <div class="field">
+      <textarea id="fBackup" placeholder="Tap Export to get a backup code, or paste a code here and tap Import."></textarea>
+    </div>
+    <div class="err-msg" id="backupErr"></div>
+    <div class="dlg-actions">
+      <button class="btn" id="exportBtn">Export</button>
+      <button class="btn" id="importBtn">Import</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Share -->
+<dialog id="shareDlg">
+  <div class="dlg">
+    <h3>Share snapshot</h3>
+    <label class="check"><input type="checkbox" id="fPctOnly" checked> Hide dollar amounts (percentages only)</label>
+    <label class="check"><input type="checkbox" id="fShowHoldings" checked> Include each stock</label>
+    <pre class="preview" id="sharePreview"></pre>
+    <div class="dlg-actions">
+      <button class="btn" data-close>Close</button>
+      <button class="btn" id="copyShareBtn">Copy</button>
+      <button class="btn primary" id="doShareBtn">Share…</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- storage (never throws) ----------
+  const LS = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  const S = {
+    key: LS.get('st.key', ''),
+    holdings: LS.get('st.holdings', []),   // [{sym, shares, cost}]
+    quotes: LS.get('st.quotes', {}),       // sym -> {c, d, dp, pc, t}
+    interval: LS.get('st.interval', 30),
+    sort: LS.get('st.sort', 'value'),
+    updated: LS.get('st.updated', 0),
+    marketOpen: null,
+    session: '',
+    loading: false,
+    error: ''
+  };
+  const save = () => {
+    LS.set('st.key', S.key); LS.set('st.holdings', S.holdings); LS.set('st.quotes', S.quotes);
+    LS.set('st.interval', S.interval); LS.set('st.sort', S.sort); LS.set('st.updated', S.updated);
+  };
+
+  // ---------- formatting ----------
+  const usdFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  const usd = n => usdFmt.format(n);
+  const sUsd = n => (n >= 0 ? '+' : '−') + usdFmt.format(Math.abs(n));
+  const sPct = n => (n >= 0 ? '+' : '−') + Math.abs(n * 100).toFixed(2) + '%';
+  const cls = n => n > 0 ? 'up' : n < 0 ? 'down' : '';
+  const num = n => (+n).toLocaleString('en-US', { maximumFractionDigits: 4 });
+  const $ = id => document.getElementById(id);
+  const SYM_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
+
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // ---------- Finnhub ----------
+  const API = 'https://finnhub.io/api/v1';
+  async function api(path) {
+    const sep = path.includes('?') ? '&' : '?';
+    const res = await fetch(`${API}${path}${sep}token=${encodeURIComponent(S.key)}`, { cache: 'no-store' });
+    if (res.status === 429) throw Object.assign(new Error('Rate limit hit — slowing down. Try a longer refresh interval.'), { rate: true });
+    if (res.status === 401 || res.status === 403) throw Object.assign(new Error('API key was rejected. Check it in Settings.'), { auth: true });
+    if (!res.ok) throw new Error(`Quote service error (${res.status}).`);
+    return res.json();
+  }
+  async function getQuote(sym) {
+    const j = await api(`/quote?symbol=${encodeURIComponent(sym)}`);
+    if (!j || typeof j.c !== 'number' || (j.c === 0 && j.pc === 0)) return null;
+    return { c: j.c, d: j.d ?? (j.c - j.pc), dp: j.dp, pc: j.pc, t: j.t };
+  }
+
+  function clockOpen() {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+    const g = t => (p.find(x => x.type === t) || {}).value;
+    const wd = g('weekday'); if (wd === 'Sat' || wd === 'Sun') return false;
+    const m = (+g('hour') % 24) * 60 + +g('minute');
+    return m >= 570 && m < 960; // 9:30–16:00 ET
+  }
+
+  async function refresh(manual) {
+    if (S.loading) return;
+    if (!S.key) { if (manual) openSettings(); return; }
+    if (!S.holdings.length) { if (manual) openHolding(-1); return; }
+    S.loading = true; S.error = ''; renderLoading();
+    const syms = [...new Set(S.holdings.map(h => h.sym))];
+    try {
+      // market status (one call); fall back to the clock
+      try {
+        const ms = await api('/stock/market-status?exchange=US');
+        S.marketOpen = !!ms.isOpen; S.session = ms.session || '';
+      } catch (e) {
+        if (e.auth || e.rate) throw e;
+        S.marketOpen = clockOpen(); S.session = '';
+      }
+      const bad = [];
+      for (let i = 0; i < syms.length; i += 6) {
+        const batch = syms.slice(i, i + 6);
+        const res = await Promise.all(batch.map(s => getQuote(s).then(q => [s, q])));
+        res.forEach(([s, q]) => { if (q) S.quotes[s] = q; else bad.push(s); });
+      }
+      S.updated = Date.now();
+      if (bad.length) S.error = `No quote for: ${bad.join(', ')}`;
+      save();
+    } catch (e) {
+      S.error = e.message || 'Could not reach the quote service.';
+      if (S.marketOpen === null) S.marketOpen = clockOpen();
+    } finally {
+      S.loading = false; render();
+    }
+  }
+
+  // ---------- auto refresh ----------
+  function effectiveInterval() {
+    if (!S.interval) return 0;
+    const calls = new Set(S.holdings.map(h => h.sym)).size + 1;
+    const min = Math.ceil(calls * 60 / 55); // stay under free tier's 60 calls/min
+    return Math.max(S.interval, min);
+  }
+  setInterval(() => {
+    const iv = effectiveInterval();
+    if (!iv || S.loading || document.hidden || !S.key || !S.holdings.length) return;
+    const open = S.marketOpen === null ? clockOpen() : (S.marketOpen || clockOpen());
+    if (open && Date.now() - S.updated >= iv * 1000) refresh(false);
+    else renderUpdated();
+  }, 5000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && Date.now() - S.updated > 15000) refresh(false);
+  });
+
+  // ---------- computations ----------
+  function compute() {
+    let value = 0, prev = 0, day = 0, gain = 0, costSum = 0, haveQuotes = 0;
+    const rows = S.holdings.map((h, i) => {
+      const q = S.quotes[h.sym];
+      const r = { i, h, q, price: q ? q.c : null };
+      if (q) {
+        haveQuotes++;
+        r.value = h.shares * q.c;
+        r.day = h.shares * q.d;
+        r.dayPct = q.pc ? q.d / q.pc : 0;
+        value += r.value; prev += h.shares * q.pc; day += r.day;
+        if (h.cost > 0) {
+          r.basis = h.shares * h.cost; r.gain = r.value - r.basis; r.gainPct = r.gain / r.basis;
+          gain += r.gain; costSum += r.basis;
+        }
+      }
+      return r;
+    });
+    rows.forEach(r => { r.weight = value && r.value ? r.value / value : 0; });
+    const sorters = {
+      value: (a, b) => (b.value ?? -1) - (a.value ?? -1),
+      today: (a, b) => (b.dayPct ?? -9) - (a.dayPct ?? -9),
+      gain: (a, b) => (b.gainPct ?? -9) - (a.gainPct ?? -9),
+      az: (a, b) => a.h.sym.localeCompare(b.h.sym)
+    };
+    rows.sort(sorters[S.sort] || sorters.value);
+    return { rows, value, day, dayPct: prev ? day / prev : 0, gain, gainPct: costSum ? gain / costSum : 0, costSum, haveQuotes };
+  }
+
+  // ---------- rendering ----------
+  function marketText() {
+    const open = S.marketOpen === null ? clockOpen() : S.marketOpen;
+    if (open) return ['Market open', true];
+    if (S.session === 'pre-market') return ['Pre-market', false];
+    if (S.session === 'post-market') return ['After hours', false];
+    return ['Market closed', false];
+  }
+  function updatedText() {
+    if (!S.updated) return 'Not updated yet — tap refresh';
+    const secs = Math.round((Date.now() - S.updated) / 1000);
+    const ago = secs < 10 ? 'just now' : secs < 60 ? `${secs}s ago` : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : new Date(S.updated).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const time = new Date(S.updated).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+    const iv = effectiveInterval();
+    const [, open] = marketText();
+    const auto = iv && open ? ` · auto every ${iv < 60 ? iv + 's' : (iv / 60) + 'm'}` : '';
+    return `Updated ${time} (${ago})${auto}`;
+  }
+  function renderUpdated() {
+    const el = $('updated'); if (!el) return;
+    el.textContent = S.loading ? 'Refreshing…' : (S.error || updatedText());
+    el.classList.toggle('err', !!S.error && !S.loading);
+    const [t, open] = marketText();
+    const m = $('market'); m.textContent = t; m.classList.toggle('open', open);
+  }
+  function renderLoading() { $('refreshBtn').classList.add('spin'); renderUpdated(); }
+
+  const ICON_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+  const ICON_SHARE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>';
+
+  function render() {
+    $('refreshBtn').classList.toggle('spin', S.loading);
+    const main = $('main');
+
+    if (!S.key) {
+      main.innerHTML = `
+        <div class="card empty">
+          <h2>Welcome 👋</h2>
+          <div>One-time setup (about 2 minutes):</div>
+          <ol class="steps">
+            <li>Sign up free at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io</a></li>
+            <li>Copy the API key from your Finnhub dashboard</li>
+            <li>Tap <b>Enter API key</b> below and paste it</li>
+            <li>Add your stocks</li>
+          </ol>
+          <button class="btn primary block" id="setupBtn">Enter API key</button>
+        </div>`;
+      $('setupBtn').onclick = openSettings;
+      renderUpdated();
+      return;
+    }
+
+    if (!S.holdings.length) {
+      main.innerHTML = `
+        <div class="card empty">
+          <h2>No stocks yet</h2>
+          <div>Add your first holding to start tracking.</div>
+          <div style="margin-top:16px"><button class="btn primary" id="firstAdd">${ICON_PLUS} Add stock</button></div>
+        </div>`;
+      $('firstAdd').onclick = () => openHolding(-1);
+      renderUpdated();
+      return;
+    }
+
+    const c = compute();
+    const rowsHtml = c.rows.map(r => {
+      const h = r.h;
+      if (!r.q) {
+        return `<button class="row" data-i="${r.i}">
+          <span class="tk">${h.sym}</span><span class="price">—</span>
+          <span class="sub">${num(h.shares)} sh</span><span class="badge">no quote</span>
+        </button>`;
+      }
+      const gainLine = r.gain != null
+        ? `<span class="${cls(r.gain)}">${sUsd(r.gain)} (${sPct(r.gainPct)})</span> total`
+        : `<span>add cost to see gain</span>`;
+      return `<button class="row" data-i="${r.i}">
+        <span class="tk">${h.sym}</span>
+        <span class="price">${usd(r.price)}</span>
+        <span class="sub">${num(h.shares)} sh · ${usd(r.value)}</span>
+        <span class="badge ${cls(r.dayPct)}">${sPct(r.dayPct)}</span>
+        <span class="sub full">${gainLine} · <span class="${cls(r.day)}">${sUsd(r.day)}</span> today · ${(r.weight * 100).toFixed(1)}% of portfolio</span>
+      </button>`;
+    }).join('');
+
+    main.innerHTML = `
+      <div class="card">
+        <div class="label">Total value</div>
+        <div class="total">${c.haveQuotes ? usd(c.value) : '—'}</div>
+        <div class="stats">
+          <div class="stat">
+            <div class="label">Today</div>
+            <div class="v ${cls(c.day)}">${c.haveQuotes ? sUsd(c.day) : '—'}</div>
+            <div class="p ${cls(c.day)}">${c.haveQuotes ? sPct(c.dayPct) : ''}</div>
+          </div>
+          <div class="stat">
+            <div class="label">Total gain</div>
+            <div class="v ${cls(c.gain)}">${c.costSum ? sUsd(c.gain) : '—'}</div>
+            <div class="p ${cls(c.gain)}">${c.costSum ? sPct(c.gainPct) : '<span class="sub">add costs</span>'}</div>
+          </div>
+        </div>
+        <div class="updated" id="updated"></div>
+      </div>
+      <div class="seg" id="sortSeg">
+        ${[['value', 'Value'], ['today', 'Today'], ['gain', 'Gain'], ['az', 'A–Z']].map(([k, l]) =>
+          `<button data-sort="${k}" class="${S.sort === k ? 'on' : ''}">${l}</button>`).join('')}
+      </div>
+      <div class="list">${rowsHtml}</div>
+      <div class="actions">
+        <button class="btn primary" id="addBtn">${ICON_PLUS} Add stock</button>
+        <button class="btn" id="shareBtn">${ICON_SHARE} Share</button>
+      </div>`;
+
+    main.querySelectorAll('.row').forEach(b => b.onclick = () => openHolding(+b.dataset.i));
+    main.querySelectorAll('#sortSeg button').forEach(b => b.onclick = () => { S.sort = b.dataset.sort; save(); render(); });
+    $('addBtn').onclick = () => openHolding(-1);
+    $('shareBtn').onclick = openShare;
+    renderUpdated();
+  }
+
+  // ---------- dialogs ----------
+  document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+  document.querySelectorAll('dialog').forEach(d => d.addEventListener('click', e => { if (e.target === d) d.close(); }));
+
+  let editIdx = -1, deleteArmed = false;
+  function openHolding(i) {
+    editIdx = i; deleteArmed = false;
+    const h = i >= 0 ? S.holdings[i] : null;
+    $('holdingTitle').textContent = h ? `Edit ${h.sym}` : 'Add stock';
+    $('fSym').value = h ? h.sym : '';
+    $('fSym').disabled = !!h;
+    $('fShares').value = h ? h.shares : '';
+    $('fCost').value = h && h.cost ? h.cost : '';
+    $('deleteBtn').hidden = !h;
+    $('deleteBtn').textContent = 'Delete';
+    $('addHint').hidden = !!h;
+    $('holdingErr').textContent = '';
+    $('holdingDlg').showModal();
+    if (!h) setTimeout(() => $('fSym').focus(), 50);
+  }
+  const parseNum = s => { const n = parseFloat(String(s).replace(/[$,\s]/g, '')); return isFinite(n) ? n : NaN; };
+
+  $('saveHoldingBtn').onclick = async () => {
+    const err = $('holdingErr');
+    const sym = $('fSym').value.trim().toUpperCase();
+    const shares = parseNum($('fShares').value);
+    const costRaw = $('fCost').value.trim();
+    const cost = costRaw ? parseNum(costRaw) : 0;
+    if (!SYM_RE.test(sym)) { err.textContent = 'Enter a valid ticker (e.g. AAPL, BRK.B).'; return; }
+    if (!(shares > 0)) { err.textContent = 'Enter how many shares you own.'; return; }
+    if (isNaN(cost) || cost < 0) { err.textContent = 'Average cost must be a number (or leave blank).'; return; }
+
+    if (editIdx >= 0) {
+      Object.assign(S.holdings[editIdx], { shares, cost });
+      save(); $('holdingDlg').close(); render(); return;
+    }
+
+    // new: validate ticker with a live quote
+    const btn = $('saveHoldingBtn'); btn.disabled = true; err.textContent = 'Checking ticker…';
+    try {
+      const q = await getQuote(sym);
+      if (!q) { err.textContent = `Couldn't find "${sym}". Check the ticker (US stocks only).`; return; }
+      S.quotes[sym] = q;
+      const ex = S.holdings.find(h => h.sym === sym);
+      if (ex) {
+        const total = ex.shares + shares;
+        const exCost = ex.cost || 0;
+        ex.cost = (exCost && cost) ? (ex.shares * exCost + shares * cost) / total : (exCost || cost);
+        ex.shares = total;
+        toast(`Combined with existing ${sym}`);
+      } else {
+        S.holdings.push({ sym, shares, cost });
+      }
+      save(); $('holdingDlg').close(); render();
+    } catch (e) {
+      err.textContent = e.message;
+    } finally { btn.disabled = false; }
+  };
+  $('deleteBtn').onclick = () => {
+    if (!deleteArmed) { deleteArmed = true; $('deleteBtn').textContent = 'Tap again to delete'; return; }
+    const sym = S.holdings[editIdx].sym;
+    S.holdings.splice(editIdx, 1);
+    if (!S.holdings.some(h => h.sym === sym)) delete S.quotes[sym];
+    save(); $('holdingDlg').close(); render(); toast(`Removed ${sym}`);
+  };
+
+  function openSettings() {
+    $('fKey').value = S.key;
+    $('fInterval').value = String(S.interval);
+    $('fBackup').value = ''; $('backupErr').textContent = '';
+    updateIntervalHint();
+    $('settingsDlg').showModal();
+  }
+  function updateIntervalHint() {
+    const n = new Set(S.holdings.map(h => h.sym)).size;
+    const min = Math.ceil((n + 1) * 60 / 55);
+    $('intervalHint').textContent = n && +$('fInterval').value && +$('fInterval').value < min
+      ? `With ${n} stocks the free plan allows refreshing every ${min}s at most — it will use that.`
+      : 'Free plan: 60 quote requests per minute. Prices are real-time for US stocks.';
+  }
+  $('fInterval').onchange = updateIntervalHint;
+  $('saveSettingsBtn').onclick = () => {
+    const newKey = $('fKey').value.trim();
+    const changed = newKey !== S.key;
+    S.key = newKey; S.interval = +$('fInterval').value;
+    save(); $('settingsDlg').close(); render();
+    if (changed && S.key) refresh(false);
+  };
+  $('exportBtn').onclick = async () => {
+    const code = JSON.stringify({ v: 1, holdings: S.holdings });
+    $('fBackup').value = code;
+    try { await navigator.clipboard.writeText(code); toast('Backup copied — paste it on your other device'); }
+    catch (e) { $('fBackup').select(); toast('Select and copy the code above'); }
+  };
+  $('importBtn').onclick = () => {
+    const err = $('backupErr'); err.textContent = '';
+    try {
+      const data = JSON.parse($('fBackup').value.trim());
+      const list = Array.isArray(data) ? data : data.holdings;
+      if (!Array.isArray(list)) throw 0;
+      const clean = list.map(h => ({ sym: String(h.sym || '').toUpperCase(), shares: +h.shares, cost: +h.cost || 0 }))
+        .filter(h => SYM_RE.test(h.sym) && h.shares > 0);
+      if (!clean.length) throw 0;
+      S.holdings = clean; save(); $('settingsDlg').close(); render(); refresh(false);
+      toast(`Imported ${clean.length} holding${clean.length > 1 ? 's' : ''}`);
+    } catch (e) { err.textContent = "That doesn't look like a valid backup code."; }
+  };
+
+  // ---------- share ----------
+  function shareText() {
+    const pctOnly = $('fPctOnly').checked, each = $('fShowHoldings').checked;
+    const c = compute();
+    const when = new Date(S.updated || Date.now()).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }) + ' ET';
+    const L = [`📈 My portfolio — ${when}`];
+    if (!pctOnly) L.push(`Value: ${usd(c.value)}`);
+    L.push(pctOnly ? `Today: ${sPct(c.dayPct)}` : `Today: ${sUsd(c.day)} (${sPct(c.dayPct)})`);
+    if (c.costSum) L.push(`Total gain: ${pctOnly ? sPct(c.gainPct) : `${sUsd(c.gain)} (${sPct(c.gainPct)})`}`);
+    if (each) {
+      L.push('');
+      [...c.rows].sort((a, b) => (b.value ?? 0) - (a.value ?? 0)).forEach(r => {
+        if (!r.q) return;
+        let s = `${r.h.sym}  ${sPct(r.dayPct)} today`;
+        if (r.gainPct != null) s += ` · ${sPct(r.gainPct)} total`;
+        s += ` · ${(r.weight * 100).toFixed(0)}% of portfolio`;
+        if (!pctOnly) s += ` · ${usd(r.value)}`;
+        L.push(s);
+      });
+    }
+    return L.join('\n');
+  }
+  function openShare() { $('sharePreview').textContent = shareText(); $('doShareBtn').hidden = !navigator.share; $('shareDlg').showModal(); }
+  $('fPctOnly').onchange = $('fShowHoldings').onchange = () => { $('sharePreview').textContent = shareText(); };
+  $('copyShareBtn').onclick = async () => {
+    try { await navigator.clipboard.writeText(shareText()); toast('Copied'); } catch (e) { toast('Copy failed — select the text instead'); }
+  };
+  $('doShareBtn').onclick = async () => {
+    try { await navigator.share({ title: 'My portfolio', text: shareText() }); } catch (e) { /* cancelled */ }
+  };
+
+  // ---------- go ----------
+  $('refreshBtn').onclick = () => refresh(true);
+  $('settingsBtn').onclick = openSettings;
+  render();
+  refresh(false);
+})();
+</script>
+</body>
+</html>
