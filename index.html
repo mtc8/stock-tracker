@@ -443,7 +443,7 @@
         <span class="tk">${h.sym}</span>
         <span class="price">${usd(r.price)}</span>
         <span class="sub">${num(h.shares)} sh${h.cost > 0 ? ` @ ${usd(h.cost)} avg` : ''} · ${usd(r.value)}</span>
-        <span class="badge ${cls(r.dayPct)}">${sPct(r.dayPct)}</span>
+        <span class="badge ${cls(r.dayPct)}">${sUsd(r.q.d)} (${sPct(r.dayPct)})</span>
         <span class="sub full">${gainLine} · <span class="${cls(r.day)}">${sUsd(r.day)}</span> today · ${(r.weight * 100).toFixed(1)}% of portfolio</span>
       </button>`;
     }).join('');
